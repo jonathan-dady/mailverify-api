@@ -1,0 +1,4 @@
+Flask==2.3.7          # pour créer l’API
+dnspython==2.4.3      # pour la résolution MX des domaines
+requests==2.32.0      # si tu veux faire des requêtes HTTP
+smtplib==0.0.1        # inclus dans Python standard, mais listé pour clarté
