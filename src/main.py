@@ -10,6 +10,16 @@ EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+")
 BLOCKED_DOMAINS = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com"]
 MAX_THREADS = 10  # Nombre maximum de threads simultanés pour les vérifications
 
+# Liste de serveurs DNS publics fiables
+DNS_SERVERS = ['8.8.8.8', '8.8.4.4', '1.1.1.1', '1.0.0.1']
+
+def setup_dns_resolver():
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = DNS_SERVERS
+    resolver.timeout = 5
+    resolver.lifetime = 5
+    return resolver
+
 def check_email(email):
     email = email.strip()
     if not EMAIL_REGEX.fullmatch(email):
@@ -18,23 +28,38 @@ def check_email(email):
     user, domain = email.split("@")
 
     if domain.lower() in BLOCKED_DOMAINS:
-        try:
-            records = dns.resolver.resolve(domain, 'MX')
-            if records:
-                return {"email": email, "statut": "Potentiellement valide", "info": "Domaine OK, SMTP non testé"}
-        except Exception as e:
-            return {"email": email, "statut": "Invalide", "info": f"MX introuvable ({e})"}
+        return {"email": email, "statut": "Potentiellement valide", "info": "Domaine grand public, SMTP non testé"}
 
+    resolver = setup_dns_resolver()
+    
     try:
-        records = dns.resolver.resolve(domain, 'MX')
-        if not records:
-            return {"email": email, "statut": "Invalide", "info": "Pas de MX trouvé"}
+        # Essayer d'abord les enregistrements MX avec plusieurs serveurs DNS
+        mx_records = []
+        for dns_server in DNS_SERVERS:
+            try:
+                resolver.nameservers = [dns_server]
+                records = resolver.resolve(domain, 'MX')
+                mx_records = [str(mx.exchange).rstrip('.') for mx in records]
+                if mx_records:
+                    break
+            except Exception:
+                continue
 
-        for mx in records:
-            mx_record = str(mx.exchange)
+        # Si pas de MX, essayer les enregistrements A
+        if not mx_records:
+            try:
+                records = resolver.resolve(domain, 'A')
+                mx_records = [domain]
+            except Exception as e:
+                return {"email": email, "statut": "Invalide", "info": f"Domaine introuvable"}
+
+        if not mx_records:
+            return {"email": email, "statut": "Invalide", "info": "Pas de serveur de mail trouvé"}
+
+        for mx in mx_records:
             try:
                 server = smtplib.SMTP(timeout=10)
-                server.connect(mx_record)
+                server.connect(mx)
                 server.helo(server.local_hostname)
                 server.mail('test@example.com')
                 code, _ = server.rcpt(email)
@@ -44,12 +69,12 @@ def check_email(email):
                     return {"email": email, "statut": "Valide", "info": "SMTP OK"}
                 else:
                     return {"email": email, "statut": "Potentiellement valide", "info": f"SMTP réponse {code}"}
-            except Exception:
+            except Exception as e:
                 continue
 
         return {"email": email, "statut": "Potentiellement valide", "info": "Domaine OK, SMTP bloqué ou timeout"}
     except Exception as e:
-        return {"email": email, "statut": "Invalide", "info": f"Erreur MX ({e})"}
+        return {"email": email, "statut": "Invalide", "info": f"Erreur de vérification ({str(e)})"}
 
 @app.route("/verify_emails", methods=["POST"])
 def verify_emails():
