@@ -32,6 +32,27 @@ python src/main.py
 
 L'API sera disponible à l'adresse `http://localhost:5000/verify_emails`.
 
+### Exemple d'utilisation avec curl
+
+```bash
+curl --location 'http://127.0.0.1:5000/verify_emails' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "emails": [
+    "john.doe@example.com",
+    "contact@entreprise-fictive.com",
+    "service.client@societe.test",
+    "info@organisation.demo",
+    "support@tech-demo.com",
+    "contact@startup.test",
+    "commercial@business.example",
+    "info@company.demo",
+    "service@enterprise.test",
+    "contact@corporation.example"
+  ]
+}'
+```
+
 ## Point d'accès API
 
 ### POST /verify_emails
