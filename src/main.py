@@ -58,13 +58,17 @@ def verify_emails():
         return jsonify({"error": "Veuillez fournir un champ 'emails' avec une liste d'e-mails"}), 400
 
     emails = data["emails"]
-    results = []
+    results = [None] * len(emails)  # Pré-allouer la liste avec la même taille
 
     with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-        future_to_email = {executor.submit(check_email, email): email for email in emails}
-        for future in as_completed(future_to_email):
+        # Créer un dictionnaire pour stocker l'index original de chaque email
+        future_to_index = {executor.submit(check_email, email): idx 
+                          for idx, email in enumerate(emails)}
+        
+        for future in as_completed(future_to_index):
+            idx = future_to_index[future]
             result = future.result()
-            results.append(result)
+            results[idx] = result  # Placer le résultat à l'index original
 
     return jsonify(results)
 
